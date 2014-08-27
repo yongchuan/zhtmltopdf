@@ -147,6 +147,7 @@ PHP_MINFO_FUNCTION(zhtmltopdf)
 	php_info_print_table_header(2, "zhtmltopdf support", "enabled");
 	php_info_print_table_header(2, "version", "0.2");
 	php_info_print_table_header(2, "Author", "shenzhe163@gmail.com");
+	php_info_print_table_header(2, "Modify by charles", "charles.m1256@gmail.com");
 	php_info_print_table_end();
 
 	/* Remove comments if you have entries in php.ini
@@ -169,7 +170,7 @@ PHP_FUNCTION(zhtml2pdf)
 	char *url = NULL;
 	char *cookie = NULL;
 	int out_len, url_len, cookie_len;
-  long len;
+  	long len;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|ss", &url, &url_len, &out, &out_len, &cookie, &cookie_len) == FAILURE) {
 		return;
@@ -224,13 +225,14 @@ PHP_FUNCTION(zhtml2img)
   char *url = NULL;
   char *fmt = NULL;
   char *out = NULL;
+  char * cookie_jar_path = NULL;
   long quality = 80;
-  int url_len, fmt_len, out_len;
+  int url_len, fmt_len, out_len, cookie_jar_path_len;
 
   long len;
   const unsigned char * data;
 
-  if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|ssl", &url, &url_len, &out, &out_len, &fmt, &fmt_len, &quality) == FAILURE) {
+  if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|ssls", &url, &url_len, &out, &out_len, &fmt, &fmt_len, &quality, &cookie_jar_path, &cookie_jar_path_len) == FAILURE) {
     return;
   }
 
@@ -254,6 +256,10 @@ PHP_FUNCTION(zhtml2img)
 
     if(out) {
       wkhtmltoimage_set_global_setting(gs, "out", out);
+    }
+    
+    if (cookie_jar_path) {
+      wkhtmltoimage_set_global_setting(gs, "load.cookieJar", cookie_jar_path);
     }
 
     if(quality < 1) {
