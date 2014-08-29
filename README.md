@@ -17,23 +17,21 @@ zhtmltopdf， 把html页面转成pdf或image的php扩展
 =======
 	
 	//参数1： 网址
-	//参数2： 输出的pdf文件名
+	//参数2： 数组，指定的各项参数 参考http://wkhtmltopdf.org/libwkhtmltox/pagesettings.html
+	//参数3： 代理地址及端口
 	//会生成pdf文件
-	zhtml2pdf("http://www.baidu.com", "./baidu.pdf");
+	zhtml2pdf("http://www.baidu.com", array("out"=>"./baidu.pdf"), "127.0.0.1:8080");
 
 	//参数1： 网址
 	//只输入参数，可直接到到pdf的数据, 可直接echo或输出到浏览器
 	$content = zhtml2pdf("http://www.baidu.com");
 	echo $content;
 
-	//参数1： 网址
-	//参数2： 生成的img文件名 （可选）
-	//参数3:  图片fmt(可选) jpeg(默认), png, bmp
-	//参数4:  图片质量(可选) 默认80
-	zhtml2img("http://www.baidu.com", "./baidu.jpg");
+	//参数1： 数组，各项参数 参考http://wkhtmltopdf.org/libwkhtmltox/pagesettings.html
+	zhtml2img(array("in"=>"http://www.baidu.com", "out"=>"./baidu.png", "fmt"=>"png"));
 
-	//参数1： 网址
-	//只输入参数，可直接到到图片的数据, 可直接echo或输出到浏览器
+	//参数1： 数组，各项参数 参考http://wkhtmltopdf.org/libwkhtmltox/pagesettings.html
+	//不指定out参数，可直接到到图片的数据, 可直接echo或输出到浏览器
 	$content = zhtml2img("http://www.baidu.com");
 	echo $content;
 
