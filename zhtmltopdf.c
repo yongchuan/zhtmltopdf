@@ -38,14 +38,17 @@ ZEND_DECLARE_MODULE_GLOBALS(zhtmltopdf)
 /* True global resources - no need for thread safety here */
 //static int le_zhtmltopdf;
 
+ZEND_BEGIN_ARG_INFO(zhtml2img_arginfo, 0)
+	ZEND_ARG_ARRAY_INFO(0, config, 0)	
+ZEND_END_ARG_INFO()
 
 /* {{{ zhtmltopdf_functions[]
  *
  * Every user visible function must have an entry in zhtmltopdf_functions[].
  */
 const zend_function_entry zhtmltopdf_functions[] = {
-	PHP_FE(zhtml2pdf,	NULL)		/* For testing, remove later. */
-	PHP_FE(zhtml2img,	NULL)		/* For testing, remove later. */
+	PHP_FE(zhtml2pdf,	NULL)		
+	PHP_FE(zhtml2img,	zhtml2img_arginfo)
 	PHP_FE_END	/* Must be the last line in zhtmltopdf_functions[] */
 };
 /* }}} */
@@ -168,11 +171,14 @@ PHP_FUNCTION(zhtml2pdf)
 {
 	char *out = NULL;
 	char *url = NULL;
-	char *cookie = NULL;
-	int out_len, url_len, cookie_len;
+	char *proxy = NULL;
+	zval **v;
+	zval *config = NULL;
+	HashTable *config_ht;
+	int url_len, proxy_len;
   	long len;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|ss", &url, &url_len, &out, &out_len, &cookie, &cookie_len) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|zs", &url, &url_len, &config, &proxy, &proxy_len) == FAILURE) {
 		return;
 	}
 
@@ -186,16 +192,43 @@ PHP_FUNCTION(zhtml2pdf)
 
     gs = wkhtmltopdf_create_global_settings();
 
-    if(out) {
-      wkhtmltopdf_set_global_setting(gs, "out", out);
-    }
-    
-    if(cookie){
-        wkhtmltopdf_set_global_setting(gs, "load.cookieJar", cookie);
-    }
+    /******* out ***/
+    if (config) {
+    	    config_ht = Z_ARRVAL_P(config);
+            if (zend_hash_num_elements(config_ht) > 0) {
+		    if (zend_hash_exists(config_ht, ZEND_STRS("out"))) {
+			zend_hash_find(config_ht, ZEND_STRS("out"), (void **)&v);
+			convert_to_string(*v);
+			out = estrndup(Z_STRVAL_PP(v), Z_STRLEN_PP(v));
+		    }
 
+		    for(zend_hash_internal_pointer_reset(config_ht); zend_hash_has_more_elements(config_ht) == SUCCESS; zend_hash_move_forward(config_ht)) {
+			char *key, *param_key, *param;
+			ulong idx;
+			int key_type;
+			uint keylen;
+			key_type = zend_hash_get_current_key_ex(config_ht, &key, &keylen,&idx, 0, NULL);
+			if (zend_hash_get_current_data(config_ht, (void **)&v) == FAILURE) {
+				RETURN_FALSE;
+			}
+			if (key_type != HASH_KEY_IS_STRING) {
+				continue;
+			}
+			convert_to_string(*v);
+			param_key = estrndup(key, strlen(key));
+			param = estrndup(Z_STRVAL_PP(v), Z_STRLEN_PP(v));
+			if (wkhtmltopdf_set_global_setting(gs, key, param) == 0) {
+				php_error_docref(NULL TSRMLS_CC, E_ERROR, "param %s is wrong", key);
+				RETURN_FALSE;
+			}
+		    }
+	  }
+    }
     os = wkhtmltopdf_create_object_settings();
     wkhtmltopdf_set_object_setting(os, "page", url);
+    if (proxy) {
+    	wkhtmltopdf_set_object_setting(os, "load.proxy", proxy);
+    }
     c = wkhtmltopdf_create_converter(gs);
     wkhtmltopdf_add_object(c, os, NULL);
     if(!wkhtmltopdf_convert(c)) {
@@ -222,51 +255,58 @@ PHP_FUNCTION(zhtml2pdf)
 
 PHP_FUNCTION(zhtml2img)
 {
-  char *url = NULL;
-  char *fmt = NULL;
-  char *out = NULL;
-  char * cookie_jar_path = NULL;
-  long quality = 80;
-  int url_len, fmt_len, out_len, cookie_jar_path_len;
-
+  zval *config;
+  zval **v;
+  char *out;
   long len;
   const unsigned char * data;
-
-  if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|ssls", &url, &url_len, &out, &out_len, &fmt, &fmt_len, &quality, &cookie_jar_path, &cookie_jar_path_len) == FAILURE) {
+  HashTable *config_ht;
+  if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &config) == FAILURE) {
     return;
   }
-
     if(!ZHTMLTOPDF_G(zhtml2img_initialized)) {
         ZHTMLTOPDF_G(zhtml2img_initialized) = wkhtmltoimage_init(0);
     }
 
     wkhtmltoimage_global_settings * gs;
     wkhtmltoimage_converter * c;
-
+    /** config array **/
+    config_ht = Z_ARRVAL_P(config);
+	
+    if (!zend_hash_exists(config_ht, ZEND_STRS("in"))) {
+	php_error_docref(NULL TSRMLS_CC, E_ERROR, "parameter in must input");
+	RETURN_FALSE;
+    }
 
     gs = wkhtmltoimage_create_global_settings();
-
-    wkhtmltoimage_set_global_setting(gs, "in", url);
-
-    if(fmt == NULL) {
-      fmt = "jpeg";
+    /******* out ***/
+    if (zend_hash_exists(config_ht, ZEND_STRS("out"))) {
+	zend_hash_find(config_ht, ZEND_STRS("out"), (void **)&v);
+	convert_to_string(*v);
+	out = estrndup(Z_STRVAL_PP(v), Z_STRLEN_PP(v));
     }
 
-    wkhtmltoimage_set_global_setting(gs, "fmt", fmt);
-
-    if(out) {
-      wkhtmltoimage_set_global_setting(gs, "out", out);
+    for(zend_hash_internal_pointer_reset(config_ht); zend_hash_has_more_elements(config_ht) == SUCCESS; zend_hash_move_forward(config_ht)) {
+	char *key, *param_key, *param;
+	ulong idx;
+	uint keylen;
+	int key_type;
+	key_type = zend_hash_get_current_key_ex(config_ht, &key, &keylen,&idx, 0, NULL);
+	if (zend_hash_get_current_data(config_ht, (void **)&v) == FAILURE) {
+		RETURN_FALSE;
+	}
+	if (key_type != HASH_KEY_IS_STRING) {
+		continue;
+	}
+	convert_to_string(*v);
+	param_key = estrndup(key, strlen(key));
+	param = estrndup(Z_STRVAL_PP(v), Z_STRLEN_PP(v));
+    	if (wkhtmltoimage_set_global_setting(gs, key, param) == 0) {
+		php_error_docref(NULL TSRMLS_CC, E_ERROR, "param %s is wrong", key);
+		RETURN_FALSE;
+	}
     }
-    
-    if (cookie_jar_path) {
-      wkhtmltoimage_set_global_setting(gs, "load.cookieJar", cookie_jar_path);
-    }
 
-    if(quality < 1) {
-      quality = 80;
-    }
-
-    wkhtmltoimage_set_global_setting(gs, "quality", out);
 
     c = wkhtmltoimage_create_converter(gs, NULL);
 

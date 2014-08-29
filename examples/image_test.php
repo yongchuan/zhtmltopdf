@@ -1,2 +1,3 @@
 <?php
-	zhtml2img("http://www.baidu.com", "./baidu.jpg");
+	$config = array("in"=>"http://www.baidu.com","out"=>'./c.jpg');
+ 	zhtml2img($config);
